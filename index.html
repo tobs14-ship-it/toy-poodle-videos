@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>トイプードルの大冒険｜動画一覧</title>
+<style>
+body{margin:0;background:#fffaf5;font-family:sans-serif;color:#333}
+header{text-align:center;padding:25px 12px;background:#ffe4d6}
+h1{font-size:24px}header p{font-size:14px}
+#videos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px;max-width:900px;margin:auto}
+.video{background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px #ddd}
+.video img{width:100%;aspect-ratio:9/12;object-fit:cover}
+.info{padding:10px}h2{font-size:14px;margin:0 0 8px}.description{font-size:12px;color:#666}
+a{color:inherit;text-decoration:none}#status{text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<header>
+<h1>🐩 トイプードルの大冒険</h1>
+<p>ジョンと仲間たちの心温まる物語</p>
+<p>新しい動画から順番にご紹介します</p>
+</header>
+<p id="status">動画一覧を読み込み中…</p>
+<main id="videos"></main>
+<script>
+// YouTube Data API v3 のAPIキーを設定すると動画一覧を読み込みます。
+const API_KEY = "";
+const HANDLE = "toypoodle-adventure";
+async function youtube(endpoint, params){
+ const url=new URL("https://www.googleapis.com/youtube/v3/"+endpoint);
+ Object.entries({...params,key:API_KEY}).forEach(([k,v])=>url.searchParams.set(k,v));
+ const response=await fetch(url);
+ if(!response.ok)throw new Error("APIの設定を確認してください");
+ return response.json();
+}
+function description(text){
+ const line=(text||"").split("\n").map(s=>s.trim()).find(s=>s&&!s.startsWith("#")&&!s.startsWith("http"));
+ return line?line.slice(0,80):"動画をぜひご覧ください。";
+}
+async function loadVideos(){
+ const status=document.getElementById("status");
+ if(!API_KEY){status.textContent="YouTube連携の設定が必要です。";return;}
+ try{
+  const channel=await youtube("channels",{part:"contentDetails",forHandle:HANDLE});
+  if(!channel.items?.length)throw new Error("チャンネルが見つかりません");
+  const playlist=channel.items[0].contentDetails.relatedPlaylists.uploads;
+  let token="";const items=[];
+  do{
+   const data=await youtube("playlistItems",{part:"snippet",playlistId:playlist,maxResults:50,pageToken:token});
+   items.push(...data.items);token=data.nextPageToken||"";
+  }while(token);
+  items.sort((a,b)=>new Date(b.snippet.publishedAt)-new Date(a.snippet.publishedAt));
+  const container=document.getElementById("videos");
+  for(const item of items){
+   const s=item.snippet;const id=s.resourceId?.videoId;
+   if(!id||s.title==="Deleted video"||s.title==="Private video")continue;
+   const card=document.createElement("article");card.className="video";
+   const link=document.createElement("a");link.href="https://www.youtube.com/watch?v="+encodeURIComponent(id);link.target="_blank";link.rel="noopener";
+   const img=document.createElement("img");img.src=s.thumbnails?.high?.url||s.thumbnails?.medium?.url||"";img.alt=s.title;img.loading="lazy";
+   const info=document.createElement("div");info.className="info";
+   const title=document.createElement("h2");title.textContent=s.title;
+   const desc=document.createElement("p");desc.className="description";desc.textContent=description(s.description);
+   info.append(title,desc);link.append(img,info);card.append(link);container.append(card);
+  }
+  status.textContent=container.children.length+"本の動画を掲載しています";
+ }catch(e){status.textContent="動画の取得に失敗しました："+e.message;}
+}
+loadVideos();
+</script>
+</body>
+</html>
